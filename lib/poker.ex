@@ -19,8 +19,8 @@ defmodule Poker do
     parse(str, [])
   end
 
-  defp parse(<<a>> <> <<b>> <> c, acc), do:
-    parse(c, [ Poker.Card.parse(<<a>> <> <<b>>) | acc ])
+  defp parse(<<a, b>> <> c, acc), do:
+    parse(c, [ Poker.Card.parse(<<a, b>>) | acc ])
   defp parse("", acc), do: acc
 
 end

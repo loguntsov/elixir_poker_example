@@ -4,9 +4,8 @@ defmodule Poker.Hand.Position do
   def compare(hands_list) do
     indexed = Enum.with_index(hands_list)
     r = [ &get_straight_flush/1, &get_4_kind/1, &get_full_house/1, &get_flush/1, &get_straight/1, &get_3_kind/1, &get_2_pair/1, &get_pair/1 ]
-      |> Enum.with_index()
       |> List.foldl(nil, fn
-        ({ check_fn, n}, nil) ->
+        ( check_fn, nil) ->
           #IO.puts("#{inspect n}")
           indexed |> List.foldl(nil, fn
             {hand, index}, nil ->
@@ -18,10 +17,11 @@ defmodule Poker.Hand.Position do
               case check_fn.(hand) do
                 [] -> result;
                 [ a | _ ] ->
-                  case a > r do
-                    true -> { index, a }
-                    false -> result
-                  end
+                  cond do
+                     a > r -> { index, a }
+                     a == r -> :nil
+                     true -> result
+                  end   
               end
           end)
         ;(_, result) -> result end
@@ -57,7 +57,7 @@ defmodule Poker.Hand.Position do
     end
   end
 
-  defp get_high_card([{v1, _}, {v2, _} =r2 | tail ], acc) when v1 < v2, do:
+  defp get_high_card([{v1, _}, {v2, _} = r2 | tail ], acc) when v1 < v2, do:
     get_high_card([ r2 | tail ], acc)
   defp get_high_card([{v, _}, {v, _}], acc ), do: acc
   defp get_high_card([r2], acc), do: [ r2 | acc ]
@@ -81,8 +81,13 @@ defmodule Poker.Hand.Position do
   end
 
   def get_full_house(hand) do
-    case { get_pair(hand), get_3_kind(hand) } do
-      {[{ :pair, _ } | _ ], [ :kind3, v2 | _ ]} -> [{ :full_house, v2 }]
+    case get_3_kind(hand) do
+      [{ :kind3, v2 }| _ ] ->
+        last = hand |> Enum.filter(&(&1.value != v2))
+        case get_pair(last) do
+          [{ :pair, _ } | _ ] -> [{ :full_house, v2 }]
+          _ -> []
+        end
       _ -> []
     end
   end
@@ -134,7 +139,7 @@ defmodule Poker.Hand.Position do
   defp get_3_kind([ _ | tail], acc), do: get_3_kind(tail, acc)
   defp get_3_kind([], acc), do: acc
 
-  defp get_4_kind([ v, v, v, v | tail ], acc), do: get_3_kind(tail, [ { :kind4, v } | acc ])
+  defp get_4_kind([ v, v, v, v | tail ], acc), do: get_4_kind(tail, [ { :kind4, v } | acc ])
   defp get_4_kind([ _ | tail], acc), do: get_4_kind(tail, acc)
   defp get_4_kind([], acc), do: acc
 
@@ -148,8 +153,4 @@ defmodule Poker.Hand.Position do
   defp get_straight([ _ | tail], acc), do: get_straight(tail, acc)
   defp get_straight([], acc), do: acc
 
-  defp t(x) do
-     IO.puts("#{inspect x}")
-     x
-  end
 end
