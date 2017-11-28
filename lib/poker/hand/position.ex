@@ -1,29 +1,13 @@
+ExUnit.start()
 defmodule Poker.Hand.Position do
+  use ExUnit.Case
   @moduledoc false
 
   def compare(hands_list) do
     indexed = Enum.with_index(hands_list)
     r = [ &get_straight_flush/1, &get_4_kind/1, &get_full_house/1, &get_flush/1, &get_straight/1, &get_3_kind/1, &get_2_pair/1, &get_pair/1 ]
-      |> List.foldl(nil, fn
-        ( check_fn, nil) ->
-          #IO.puts("#{inspect n}")
-          indexed |> List.foldl(nil, fn
-            {hand, index}, nil ->
-              case check_fn.(hand) do
-                [] -> nil;
-                [a | _ ] -> { index, a }
-              end
-            {hand, index}, { _, r } = result ->
-              case check_fn.(hand) do
-                [] -> result;
-                [ a | _ ] ->
-                  cond do
-                     a > r -> { index, a }
-                     a == r -> :nil
-                     true -> result
-                  end   
-              end
-          end)
+      |> List.foldl(nil, fn(check_fn, nil) ->
+          get_max_position(indexed, check_fn)
         ;(_, result) -> result end
       )
     case r do
@@ -32,6 +16,31 @@ defmodule Poker.Hand.Position do
     end
   end
 
+  defp get_max_position(hands, fun), do:
+    hands |> List.foldl(nil, fn({hand, index}, acc) ->
+      match_max(fun, index, hand, acc)
+    end)
+
+
+  defp match_max(fun, index, hand, nil) do
+    case fun.(hand) do
+      [] -> nil;
+      [a | _ ] -> { index, a }
+    end
+  end
+
+  defp match_max(fun, index, hand, { _ , r} = acc) do
+    case fun.(hand) do
+      [] -> acc;
+      [ a | _ ] ->
+        cond do
+           a > r -> { index, a }
+           a == r -> :nil
+           true -> acc
+        end
+    end
+  end
+  
   def value(:high_card), do: 0
   def value(:pair), do: 1
   def value(:pair2), do: 2
@@ -153,4 +162,65 @@ defmodule Poker.Hand.Position do
   defp get_straight([ _ | tail], acc), do: get_straight(tail, acc)
   defp get_straight([], acc), do: acc
 
+
+## Tests
+
+  alias Poker.Card, as: Card
+
+  test "get_straight" do
+    assert [{:straight, 7 }] == get_straight(for x <- [7,6,5,4,3], do: %Card{ value: x, suit: "H" })
+    assert [] == get_straight(for x <- [7,6,2,4,3], do: %Card{ value: x, suit: "H" })
+  end
+
+  test "get_flush" do
+    assert [{:flush, 7}] == get_flush(for x <- [7,6,5,4,3], do: %Card{ value: x, suit: "H" })
+    assert [] == get_flush(for x <- [7,6,5,4] do %Card{ value: x, suit: "H" } end ++ [%Card{value: 1, suit: "S"}])
+  end
+
+  test "get_pair" do
+    assert [{:pair, 2}] == get_pair(for x <- [7,6,5,2,2], do: %Card{ value: x, suit: "H" })
+    assert [{:pair, 2}, {:pair, 3}] == get_pair(for x <- [7,3,3,2,2], do: %Card{ value: x, suit: "H" })
+    assert [] == get_pair(for x <- [7,6,3,2,10], do: %Card{ value: x, suit: "H" })
+  end
+
+  test "get_2_pair" do
+    assert [] == get_2_pair(for x <- [7,6,3,2,10], do: %Card{ value: x, suit: "H" })
+    assert [{:pair2, 3}] == get_2_pair(for x <- [2,2,3,3,10], do: %Card{ value: x, suit: "H" })
+  end
+
+  test "get_3_kind" do
+    assert [{:kind3, 4 }] == get_3_kind(for x <- [4,6,4,6,4], do: %Card{ value: x, suit: "H" })
+    assert [] == get_3_kind(for x <- [4,5,4,6,7], do: %Card{ value: x, suit: "H" })
+  end
+
+  test "get_4_kind" do
+    assert [{:kind4, 4 }] == get_4_kind(for x <- [4,4,4,6,4], do: %Card{ value: x, suit: "H" })
+    assert [] == get_3_kind(for x <- [4,5,4,6,7], do: %Card{ value: x, suit: "H" })
+  end
+
+  test "get_straight_flush" do
+    assert [{:straight_flush, 10 }] == get_straight_flush(for x <- [10,9,8,7,6], do: %Card{ value: x, suit: "H" })
+    assert [] == get_straight_flush(for x <- [12,9,8,7,6], do: %Card{ value: x, suit: "H" })
+  end
+
+  test "get_high_card" do
+    assert {0, {:high_card, 12 }} == get_high_card([
+      for x <- [12,4,4,6,4] do %Card{ value: x, suit: "H" } end,
+      for x <- [10,4,4,6,4] do %Card{ value: x, suit: "H" } end
+    ])
+  end
+
+  test "match_max" do
+    assert {0, {:pair, 10}} == match_max(&get_pair/1, 1, for x <- [10,9,8,7,6] do %Card{ value: x, suit: "H" } end, { 0, {:pair, 10 }})
+    assert {1, {:pair, 11}} == match_max(&get_pair/1, 1, for x <- [11,11,8,7,6] do %Card{ value: x, suit: "H" } end, { 0, {:pair, 10 }})
+    assert {1, {:pair, 11}} == match_max(&get_pair/1, 1, for x <- [11,11,8,7,6] do %Card{ value: x, suit: "H" } end, nil)
+    assert nil == match_max(&get_pair/1, 1, for x <- [10,9,8,7,6] do %Card{ value: x, suit: "H" } end, nil)
+  end
+
+  test "get_max_position" do
+    assert {1, {:pair, 11}} == get_max_position([
+      {for x <- [10,9,8,7,6] do %Card{ value: x, suit: "H" } end, 0 },
+      {for x <- [11,11,8,7,6] do %Card{ value: x, suit: "H" } end, 1 }
+    ], &get_pair/1)
+  end
 end
